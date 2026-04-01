@@ -99,7 +99,7 @@ graph TD
     end
 
     subgraph Output
-        E["🎇 Visual Output"]
+        E["Visual Output"]
     end
 
     A --> B
