@@ -6,20 +6,27 @@ import { Sparkles } from "lucide-react";
 
 export default function Home() {
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const subtitleRef = useRef<HTMLParagraphElement>(null);
   const router = useRouter();
 
   useEffect(() => {
-    if (!titleRef.current) return;
+    if (!titleRef.current || !subtitleRef.current) return;
 
-    const animeModule = require("animejs");
-    const anime = animeModule.default || animeModule;
+    const { animate } = require("animejs");
 
-    anime({
-      targets: titleRef.current,
+    animate(titleRef.current, {
       translateY: [50, 0],
       opacity: [0, 1],
-      duration: 1500,
-      easing: "easeOutExpo",
+      duration: 1200,
+      ease: "outExpo",
+    });
+
+    animate(subtitleRef.current, {
+      translateY: [20, 0],
+      opacity: [0, 1],
+      duration: 1000,
+      ease: "outExpo",
+      delay: 200,
     });
   }, []);
 
@@ -36,7 +43,7 @@ export default function Home() {
           <span className="magic-gradient">Flow.js</span>
         </h1>
         
-        <p className="text-gray-400 text-lg md:text-xl max-w-lg">
+        <p ref={subtitleRef} className="text-gray-400 text-lg md:text-xl max-w-lg opacity-0">
           Harness the power of AI to control the browser with your hands. Pure performance, zero limits.
         </p>
 
