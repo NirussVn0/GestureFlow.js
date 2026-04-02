@@ -1,70 +1,118 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useDraggable } from "@/hooks/useDraggable";
-import { X, Maximize2 } from "lucide-react";
 import { useStudioStore } from "@/store/useStudioStore";
+import { X, Maximize2 } from "lucide-react";
 
-export default function PIPWindow() {
+const PIP_WIDTH = 280;
+const PIP_HEIGHT = 158;
+const PIP_MARGIN = 16;
+
+interface PIPWindowProps {
+  channelName: string;
+  boundsRef?: React.RefObject<HTMLElement | null>;
+}
+
+export default function PIPWindow({ channelName, boundsRef }: PIPWindowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
-  const pipCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [isVisible, setIsVisible] = useState(true);
-  
-  const isVideoReady = useStudioStore((state) => state.isVideoReady);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
 
-  // High-performance draggable logic attached to Refs without React states
-  useDraggable(containerRef, handleRef);
+  useDraggable(containerRef, handleRef, boundsRef);
 
   useEffect(() => {
-    const mainCanvas = document.getElementById("main-ml-canvas") as HTMLCanvasElement;
-    const pipCanvas = pipCanvasRef.current;
-
-    if (!mainCanvas || !pipCanvas || !isVisible || !isVideoReady) return;
-
-    const ctx = pipCanvas.getContext("2d");
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const cloneLoop = () => {
-      if (mainCanvas.width && mainCanvas.height) {
-        pipCanvas.width = mainCanvas.width;
-        pipCanvas.height = mainCanvas.height;
-        ctx.clearRect(0, 0, pipCanvas.width, pipCanvas.height);
-        ctx.drawImage(mainCanvas, 0, 0, pipCanvas.width, pipCanvas.height);
-      }
-      requestRef.current = requestAnimationFrame(cloneLoop);
+    const channel = new BroadcastChannel(channelName);
+
+    channel.onmessage = (e: MessageEvent<{ bitmap: ImageBitmap }>) => {
+      cancelAnimationFrame(requestRef.current);
+      requestRef.current = requestAnimationFrame(() => {
+        const bmp = e.data.bitmap;
+        canvas.width = bmp.width;
+        canvas.height = bmp.height;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(bmp, 0, 0);
+        bmp.close();
+      });
     };
 
-    requestRef.current = requestAnimationFrame(cloneLoop);
+    return () => {
+      channel.close();
+      cancelAnimationFrame(requestRef.current);
+    };
+  }, [channelName]);
 
-    return () => cancelAnimationFrame(requestRef.current);
-  }, [isVisible, isVideoReady]);
-
-  if (!isVisible) return null;
+  const handlePopOut = useCallback(() => {
+    window.open(
+      "/studio/pip-output",
+      "gestureflow-pip",
+      `width=${PIP_WIDTH * 2},height=${PIP_HEIGHT * 2},toolbar=no,menubar=no,scrollbars=no,resizable=yes`
+    );
+  }, []);
 
   return (
-    <div 
+    <div
       ref={containerRef}
-      className="absolute top-8 right-8 w-[320px] aspect-video bg-black/80 rounded-xl border border-white/20 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col z-50 backdrop-blur-xl"
+      className="pip-handle absolute bottom-0 right-0"
+      style={{
+        width: PIP_WIDTH,
+        height: PIP_HEIGHT + 32,
+        marginBottom: PIP_MARGIN,
+        marginRight: PIP_MARGIN,
+        borderRadius: 12,
+        overflow: "hidden",
+        border: "1px solid var(--color-border)",
+        background: "#000",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+        willChange: "transform",
+        zIndex: 40,
+      }}
     >
-      <div 
+      <div
         ref={handleRef}
-        className="w-full h-8 bg-white/5 border-b border-white/10 flex items-center justify-between px-3 cursor-move hover:bg-white/10 transition-colors"
+        className="pip-handle flex items-center justify-between px-3"
+        style={{
+          height: 32,
+          background: "var(--color-surface)",
+          borderBottom: "1px solid var(--color-border)",
+          cursor: "grab",
+        }}
       >
-        <span className="text-[10px] uppercase font-bold tracking-wider magic-gradient">Virtual Cam Feed</span>
-        <div className="flex gap-2">
-          <button className="text-gray-500 hover:text-white transition-colors">
-            <Maximize2 className="w-3 h-3" />
+        <span
+          className="gold-gradient text-[10px] font-bold tracking-widest uppercase select-none"
+        >
+          Virtual Cam
+        </span>
+        <div className="flex gap-1.5">
+          <button
+            onClick={handlePopOut}
+            title="Pop out to new window"
+            style={{ color: "var(--color-text-muted)" }}
+            className="hover:text-white transition-colors"
+          >
+            <Maximize2 size={12} />
           </button>
-          <button onClick={() => setIsVisible(false)} className="text-gray-500 hover:text-red-400 transition-colors">
-            <X className="w-3 h-3" />
+          <button
+            onClick={() => useStudioStore.getState().setShowPip(false)}
+            title="Hide PIP"
+            style={{ color: "var(--color-text-muted)" }}
+            className="hover:text-red-400 transition-colors"
+          >
+            <X size={12} />
           </button>
         </div>
       </div>
-      <div className="flex-1 bg-black/50 overflow-hidden relative">
-        <canvas ref={pipCanvasRef} className="w-full h-full object-cover" />
-      </div>
+
+      <canvas
+        ref={canvasRef}
+        style={{ width: "100%", height: PIP_HEIGHT, display: "block", objectFit: "cover" }}
+      />
     </div>
   );
 }

@@ -1,22 +1,150 @@
 @import "tailwindcss";
 
 :root {
-  --background: #000000;
-  --foreground: #ffffff;
-  --glow-color: #646cff;
-  --accent-color: #00ffcc;
+  --color-gold: #F5C518;
+  --color-gold-dim: #B8960C;
+  --color-gold-glow: rgba(245, 197, 24, 0.15);
+  --color-bg: #080808;
+  --color-surface: #111111;
+  --color-surface-2: #1A1A1A;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-text: #F0F0F0;
+  --color-text-muted: #606060;
+  --color-accent: #F5C518;
+  --sidebar-width: 64px;
+  --right-panel-width: 280px;
+}
+
+.theme-light {
+  --color-bg: #F5F5F0;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #EDEDED;
+  --color-border: rgba(0, 0, 0, 0.1);
+  --color-text: #111111;
+  --color-text-muted: #888888;
+  --color-gold-glow: rgba(245, 197, 24, 0.25);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  overflow: hidden; /* App view shouldn't scroll natively for the studio */
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  transition: background 0.3s ease, color 0.3s ease;
 }
 
-.magic-gradient {
-  background: linear-gradient(135deg, var(--glow-color), var(--accent-color));
+.studio-layout {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr var(--right-panel-width);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.gold-gradient {
+  background: linear-gradient(135deg, var(--color-gold), var(--color-gold-dim));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+.gold-glow {
+  box-shadow: 0 0 20px var(--color-gold-glow);
+}
+
+.surface {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.surface-2 {
+  background: var(--color-surface-2);
+}
+
+.nav-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  color: var(--color-text-muted);
+  transition: background 0.2s ease, color 0.2s ease;
+  position: relative;
+  cursor: pointer;
+}
+
+.nav-icon-btn:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.nav-icon-btn.active {
+  background: var(--color-gold-glow);
+  color: var(--color-gold);
+}
+
+.hud-stat-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  background: var(--color-surface-2);
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: background 0.25s ease;
+  flex-shrink: 0;
+}
+
+.toggle-switch.on {
+  background: var(--color-gold);
+  border-color: var(--color-gold);
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-bg);
+  transition: transform 0.25s ease;
+}
+
+.toggle-switch.on .toggle-knob {
+  transform: translateX(20px);
+  background: #000;
+}
+
+@keyframes spin-pulse {
+  0%, 100% { opacity: 0.5; transform: scale(0.95); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+.loading-pulse {
+  animation: spin-pulse 1.4s ease-in-out infinite;
+}
+
+.pip-handle {
+  cursor: grab;
+}
+
+.pip-handle:active {
+  cursor: grabbing;
 }

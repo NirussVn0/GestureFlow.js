@@ -28,11 +28,22 @@ export class FaceTrackingService {
     if (this.isLoaded) return;
 
     const originalWarn = console.warn;
+    const originalInfo = console.info;
+
+    const mediapipeFilter = (...args: unknown[]) =>
+      typeof args[0] === "string" &&
+      (args[0].includes("gl_context.cc") ||
+        args[0].includes("face_landmarker_graph.cc") ||
+        args[0].includes("XNNPACK") ||
+        args[0].includes("TensorFlow Lite"));
+
     console.warn = (...args) => {
-      if (typeof args[0] === "string" && (args[0].includes("gl_context.cc") || args[0].includes("face_landmarker_graph.cc"))) {
-        return;
-      }
+      if (mediapipeFilter(...args)) return;
       originalWarn(...args);
+    };
+    console.info = (...args) => {
+      if (mediapipeFilter(...args)) return;
+      originalInfo(...args);
     };
 
     try {

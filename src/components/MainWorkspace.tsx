@@ -1,21 +1,43 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { CameraService } from "@/services/CameraService";
 import { FaceTrackingService } from "@/services/FaceTrackingService";
 import { useStudioStore } from "@/store/useStudioStore";
+import PIPWindow from "@/components/PIPWindow";
+
+const PIP_CHANNEL = "gestureflow-pip-stream";
+const HUD_PADDING = 16;
+const HUD_LINE_HEIGHT = 18;
+const HUD_FONT = "600 12px 'Inter', monospace";
 
 export default function MainWorkspace() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const isCameraActive = useStudioStore((state) => state.isCameraActive);
-  const isModelLoaded = useStudioStore((state) => state.isModelLoaded);
-  const setFps = useStudioStore((state) => state.setFps);
-  const setFacesDetected = useStudioStore((state) => state.setFacesDetected);
+  const channelRef = useRef<BroadcastChannel | null>(null);
+
+  const isCameraActive = useStudioStore((s) => s.isCameraActive);
+  const isModelLoaded = useStudioStore((s) => s.isModelLoaded);
+  const showStatsOverlay = useStudioStore((s) => s.showStatsOverlay);
+  const showPip = useStudioStore((s) => s.showPip);
+  const setFps = useStudioStore((s) => s.setFps);
+  const setFacesDetected = useStudioStore((s) => s.setFacesDetected);
 
   const requestRef = useRef<number>(0);
-  const lastTimeRef = useRef<number>(typeof performance !== "undefined" ? performance.now() : 0);
+  const lastTimeRef = useRef<number>(0);
   const frameCountRef = useRef<number>(0);
+  const fpsRef = useRef<number>(0);
+  const facesRef = useRef<number>(0);
+  const showOverlayRef = useRef(showStatsOverlay);
+  const showPipRef = useRef(showPip);
+
+  useEffect(() => { showOverlayRef.current = showStatsOverlay; }, [showStatsOverlay]);
+  useEffect(() => { showPipRef.current = showPip; }, [showPip]);
+
+  useEffect(() => {
+    channelRef.current = new BroadcastChannel(PIP_CHANNEL);
+    return () => channelRef.current?.close();
+  }, []);
 
   useEffect(() => {
     const startCamera = async () => {
@@ -23,21 +45,44 @@ export default function MainWorkspace() {
         try {
           await CameraService.getInstance().start(videoRef.current);
           useStudioStore.getState().setVideoReady(true);
-        } catch {
-          // Failure silently caught for pure flow
-        }
+        } catch { /* camera denied */ }
       } else {
         CameraService.getInstance().stop();
         useStudioStore.getState().setVideoReady(false);
       }
     };
     startCamera();
-    
     return () => {
       CameraService.getInstance().stop();
       useStudioStore.getState().setVideoReady(false);
     };
   }, [isCameraActive]);
+
+  const drawHud = useCallback((
+    ctx: CanvasRenderingContext2D,
+    h: number,
+    fps: number,
+    faces: number
+  ) => {
+    const lines = [`FPS: ${fps}`, `Faces: ${faces}`, isModelLoaded ? "AI: GPU" : "AI: loading"];
+    const boxH = HUD_PADDING * 2 + lines.length * HUD_LINE_HEIGHT;
+    const boxW = 110;
+    const x = HUD_PADDING;
+    const y = h - boxH - HUD_PADDING;
+
+    ctx.save();
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.beginPath();
+    ctx.roundRect(x, y, boxW, boxH, 8);
+    ctx.fill();
+
+    ctx.font = HUD_FONT;
+    ctx.fillStyle = "#F5C518";
+    lines.forEach((line, i) => {
+      ctx.fillText(line, x + HUD_PADDING, y + HUD_PADDING + HUD_LINE_HEIGHT * i + 12);
+    });
+    ctx.restore();
+  }, [isModelLoaded]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -50,20 +95,21 @@ export default function MainWorkspace() {
     const renderLoop = () => {
       const now = performance.now();
       frameCountRef.current++;
+
       if (now - lastTimeRef.current >= 1000) {
+        fpsRef.current = frameCountRef.current;
         setFps(frameCountRef.current);
         frameCountRef.current = 0;
         lastTimeRef.current = now;
       }
 
-      if (video.readyState >= 2) {
+      if (video.readyState >= 2 && video.videoWidth > 0) {
         if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
         }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        
         ctx.save();
         ctx.translate(canvas.width, 0);
         ctx.scale(-1, 1);
@@ -72,29 +118,40 @@ export default function MainWorkspace() {
 
         if (isModelLoaded) {
           const results = FaceTrackingService.getInstance().detectForVideo(video, now);
-          if (results) {
+          if (results && results.faceLandmarks.length > 0) {
+            facesRef.current = results.faceLandmarks.length;
             setFacesDetected(results.faceLandmarks.length);
-            ctx.fillStyle = "#00ffcc";
-            
-            // Draw face landmarks over the flipped video
+            ctx.fillStyle = "#F5C518";
             for (const marks of results.faceLandmarks) {
               for (const pt of marks) {
                 ctx.beginPath();
-                // Because video is flipped horizontally, we invert X coordinate drawn
                 ctx.arc((1 - pt.x) * canvas.width, pt.y * canvas.height, 1.5, 0, 2 * Math.PI);
                 ctx.fill();
               }
             }
           } else {
-             setFacesDetected(0);
+            facesRef.current = 0;
+            setFacesDetected(0);
           }
         }
+
+        if (showOverlayRef.current) {
+          drawHud(ctx, canvas.height, fpsRef.current, facesRef.current);
+        }
+
+        if (showPipRef.current && channelRef.current && canvas.width > 0) {
+          createImageBitmap(canvas).then((bmp) => {
+            (channelRef.current as BroadcastChannel & { postMessage(msg: unknown, transfer: Transferable[]): void })
+              .postMessage({ bitmap: bmp }, [bmp]);
+          });
+        }
       }
-      
+
       requestRef.current = requestAnimationFrame(renderLoop);
     };
 
     if (isCameraActive) {
+      lastTimeRef.current = performance.now();
       requestRef.current = requestAnimationFrame(renderLoop);
     } else {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -102,30 +159,36 @@ export default function MainWorkspace() {
       setFps(0);
     }
 
-    return () => {
-      cancelAnimationFrame(requestRef.current);
-    };
-  }, [isCameraActive, isModelLoaded, setFacesDetected, setFps]);
+    return () => cancelAnimationFrame(requestRef.current);
+  }, [isCameraActive, isModelLoaded, setFacesDetected, setFps, drawHud]);
 
   return (
-    <div className="relative w-full h-full max-w-5xl aspect-video mx-auto bg-black/50 border border-white/10 rounded-3xl overflow-hidden shadow-[0_0_50px_rgba(100,108,255,0.15)] flex items-center justify-center">
+    <div className="relative w-full h-full overflow-hidden" style={{ background: "#000" }}>
       {!isCameraActive && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-white/50">
-          <p>Camera is offline</p>
-          <span className="text-xs mt-2 block magic-gradient font-bold tracking-widest uppercase">Awaiting Signal</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+          <div
+            className="w-16 h-16 rounded-2xl flex items-center justify-center"
+            style={{ background: "var(--color-gold-glow)", border: "1px solid var(--color-gold)" }}
+          >
+            <span className="text-2xl">📷</span>
+          </div>
+          <div className="text-center">
+            <p style={{ color: "var(--color-text-muted)" }} className="text-sm">Camera is offline</p>
+            <p className="gold-gradient text-xs font-bold tracking-[0.2em] uppercase mt-1">Awaiting Signal</p>
+          </div>
         </div>
       )}
-      <video
-        ref={videoRef}
-        playsInline
-        muted
-        className="hidden" // Hiding the raw video element, we only show its output copied to the Canvas.
-      />
+
+      <video ref={videoRef} playsInline muted className="hidden" />
+
       <canvas
         id="main-ml-canvas"
         ref={canvasRef}
-        className="w-full h-full object-cover transform"
+        className="w-full h-full"
+        style={{ objectFit: "cover", display: "block" }}
       />
+
+      {showPip && <PIPWindow channelName={PIP_CHANNEL} />}
     </div>
   );
 }

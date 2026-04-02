@@ -1,30 +1,80 @@
-# Báo Cáo Task - Giai Đoạn 1 (Phase 1)
-**Dự án:** GestureFlow.js
-**Trạng thái:** Hoàn tất 100%
+# Task Report — Phase 1 & 2
+**Project:** GestureFlow.js
+**Status:** Phase 2 Complete ✅
 
-## ✅ Tổng Kết Các Hạng Mục Đã Triển Khai
+---
 
-### 1. Setup & Cơ sở hạ tầng
-- Khởi tạo Next.js App Router (TypeScript, TailwindCSS).
-- Cài đặt hệ thống thư viện lõi: `animejs`, `three`, `@react-three/fiber`, `@mediapipe/tasks-vision`, `lucide-react`, `zustand`.
-- Thiết lập luật Strict TypeScript (Không dùng Any, tự động bắt block lỗi ts-ignore) và ESLint nghiêm ngặt (Vô hiệu hoá Console Log trên hệ thống Prod).
-- Sắp xếp và commit source files hoàn chỉnh cho bước đệm khung xương.
+## Phase 1: Foundation (Completed)
 
-### 2. Services & Logic Backend-for-Frontend
-- Triển khai Singleton Class **`CameraService.ts`**: Lấy thiết bị vật lý `navigator.mediaDevices.getUserMedia` để mở stream video ổn định, tránh leak bộ nhớ.
-- Triển khai Singleton Class **`FaceTrackingService.ts`**: Kết nối và tải mô hình AI chuyên dụng (Delegate sang GPU hoặc CPU tự động), sẵn sàng phân bổ `.detectForVideo()`.
-- Lập State trung tâm bằng Zustand **`useStudioStore.ts`**: Quản lý vòng đời bật tắt thiết bị.
+### Infrastructure
+- Initialized Next.js 15 (App Router) with TypeScript, TailwindCSS v4, Zustand, MediaPipe Tasks Vision, Three.js, Anime.js, Lucide React.
+- Configured strict ESLint (no `any`, no `console.log`, no `@ts-ignore`) and strict tsconfig (`noUnusedLocals`, `noImplicitReturns`).
 
-### 3. Giao Diện & Magical UX
-- Thiết kế **Landing Page** với hệ thống typography gradient neon, Dark Theme, tích hợp Animation xuất hiện `anime.js` thanh lịch.
-- **Tự phát triển hệ thống Drag & Drop (`useDraggable.ts`):** Sử dụng `requestAnimationFrame` kết hợp thao tác trực tiếp DOM Hardware Acceleration loại bỏ 100% hiện tượng khựng trễ (stutter/re-render) khi kéo thả Layer ảo.
+### Services
+- **`CameraService`** — Singleton managing `navigator.mediaDevices.getUserMedia` lifecycle. Prevents duplicate stream requests.
+- **`FaceTrackingService`** — Singleton loading MediaPipe `FaceLandmarker` with GPU delegate. Exposes `detectForVideo()` for per-frame inference.
+- **`useStudioStore`** — Zustand store bridging service state to UI (FPS, face count, model loaded status, camera active).
 
-### 4. Studio Dashboard
-- Lên khối Layout cho `/studio`, tách biệt logic Control Panel và Main Workspace.
-- Trích xuất Live Stream của Camera vẽ trực tiếp lên `main-ml-canvas`. 
-- Cấp quyền tự động kích hoạt Mô hình AI, theo dõi khuôn mặt bằng toạ độ, quy đổi và render các đốm phát sáng (Landmarks) thời gian thực theo gương mặt người dùng lật Mirror cực kì hiệu quả.
-- Setup một Cửa sổ Phụ trợ **PIPWindow** (Ứng dụng Virtual Cam Stream), clone hoàn hảo và mượt mà khung hình Canvas hiện đại, cho phép cửa sổ được co kéo di chuyển theo custom hook tự định nghĩa.
+### UI
+- **Landing page** with Anime.js entrance animations (v4 `animate()` API).
+- **`useDraggable` hook** — Zero re-render drag via `requestAnimationFrame` + direct DOM `transform` mutation.
 
-## 🚀 Kết Quả & Kế Hoạch 
-Dự án đã đủ base AI nền tảng đầu tiên, hệ thống clean code và chuẩn mực OOP cho những tính năng mở rộng sâu hơn như Hand tracking gestures hay xử lý tương tác vật lý ThreeJS trên Canvas.
-Toàn bộ source code đều đã test Pass `pnpm build` nghiêm ngặt và đã lưu thành Commit History rõ ràng.
+### Commits
+- `feat: Bootstrap project with strict TS/ESLint config`
+- `feat: Implement CameraService and FaceTrackingService singletons`
+- `feat: Implement magical landing page and custom rAF Draggable Hook`
+- `feat: Implement Studio Dashboard, MediaPipe integration and PIP Virtual Cam stream`
+- `docs: Add project architecture and phase 1 task report`
+
+---
+
+## Phase 2: Studio UI Overhaul (Completed)
+
+### Design System
+- Full gold/black design theme with CSS custom properties (`--color-gold: #F5C518`).
+- Light mode via `.theme-light` CSS class overriding all tokens — no JS style injection.
+- TailwindCSS v4 directive fixed (`@import "tailwindcss"`).
+- Typography: Inter font stack, `gold-gradient` utility class.
+
+### New Components
+| Component | Responsibility |
+|---|---|
+| `LeftNavBar.tsx` | 64px fixed icon sidebar. Active state on current route. Tooltip via `title`. |
+| `RightPanel.tsx` | Settings toggles (camera, overlay, PIP, theme), live AI status, hardware info display. |
+| `MainWorkspace.tsx` | Canvas renders video mirror + face landmarks (gold dots) + HUD overlay. Streams frames via `BroadcastChannel`. |
+| `PIPWindow.tsx` | Bounded draggable virtual cam window constrained to center column. Pop-out via `window.open()`. |
+| `pip-output/page.tsx` | Standalone window receiving `ImageBitmap` frames from `BroadcastChannel`. |
+
+### New Services
+- **`HardwareService`** — Singleton detecting CPU cores, device RAM, and GPU renderer via WebGL extension. Cached after first call.
+
+### Store Expansions
+New slices in `useStudioStore`:
+- `theme: 'dark' | 'light'` — persisted to `localStorage`.
+- `showStatsOverlay: boolean` — toggles HUD on canvas.
+- `showPip: boolean` — shows/hides PIP window.
+- `hardwareInfo: HardwareInfo | null` — populated by `HardwareService` on panel mount.
+- Zustand `persist` middleware enabled with `partialize` to save only UI prefs.
+
+### Console Hygiene
+- Extended `console.warn` + `console.info` interceptor in `FaceTrackingService` to suppress all MediaPipe WASM logs: `gl_context.cc`, `face_landmarker_graph.cc`, `XNNPACK`, `TensorFlow Lite`.
+
+### Performance Decisions
+- `ImageBitmap` transfer (zero-copy) for BroadcastChannel PIP streaming.
+- `useDraggable` enhanced with `boundsRef` parameter — PIP window clamped inside center column using `getBoundingClientRect()` on `mouseenter` only.
+- rAF loop self-terminates on `useEffect` cleanup via `cancelAnimationFrame`.
+
+### Commits
+- `fix: Restore Tailwind CSS v4 directive`
+- `feat: Intercept and mute MediaPipe WebGL warnings for pure console hygiene`
+- `fix: Update AnimeJS v4 syntax and subtitle reference`
+- `fix: Resolve React hydration mismatch and animejs default export`
+- `feat: Phase 2 — Studio 3-column layout, gold theme, hardware detection, bounded PIP, BroadcastChannel stream`
+
+---
+
+## Known Constraints
+
+- **BroadcastChannel** not supported in Safari — Chrome/Edge only. Acceptable for an AI/WebGL studio.
+- **`navigator.deviceMemory`** only available in Chrome/Edge — falls back to `"unknown"` on Firefox.
+- **MediaPipe GPU delegate** may fall back to CPU xnnpack on some mobile GPUs — this is handled internally by the MediaPipe runtime.
