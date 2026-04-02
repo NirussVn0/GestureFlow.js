@@ -11,7 +11,8 @@ export default function Home() {
   useEffect(() => {
     if (!titleRef.current) return;
 
-    const anime = require("animejs");
+    const animeModule = require("animejs");
+    const anime = animeModule.default || animeModule;
 
     anime({
       targets: titleRef.current,
