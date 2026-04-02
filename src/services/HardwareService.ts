@@ -31,7 +31,9 @@ function resolveGpuRenderer(): string {
   }
 }
 
-export class HardwareService {
+import { IService } from "./IService";
+
+export class HardwareService implements IService {
   private static instance: HardwareService;
   private cachedInfo: HardwareInfo | null = null;
 
@@ -56,5 +58,13 @@ export class HardwareService {
     };
 
     return this.cachedInfo;
+  }
+
+  public initialize(): void {
+    this.detect();
+  }
+
+  public dispose(): void {
+    this.cachedInfo = null;
   }
 }

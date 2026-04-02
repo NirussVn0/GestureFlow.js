@@ -1,121 +1,121 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useLayoutEffect } from "react";
 
-const SNAP_ZONE = 56;
+const EDGE_MARGIN = 12;
 
-interface DragBounds {
-  minX: number;
-  minY: number;
-  maxX: number;
-  maxY: number;
-}
-
-function computeBounds(
-  el: HTMLElement,
-  boundsEl: HTMLElement,
-  currentPos: { x: number; y: number }
-): DragBounds {
-  const boundsRect = boundsEl.getBoundingClientRect();
-  const elRect = el.getBoundingClientRect();
-  const naturalLeft = elRect.left - currentPos.x;
-  const naturalTop = elRect.top - currentPos.y;
-
-  return {
-    minX: boundsRect.left - naturalLeft,
-    minY: boundsRect.top - naturalTop,
-    maxX: boundsRect.right - naturalLeft - elRect.width,
-    maxY: boundsRect.bottom - naturalTop - elRect.height,
-  };
-}
-
-function applySnap(raw: number, min: number, max: number): number {
-  const clamped = Math.min(Math.max(raw, min), max);
-
-  if (raw < min + SNAP_ZONE) {
-    const t = 1 - Math.max(0, (raw - min) / SNAP_ZONE);
-    return clamped - (clamped - min) * t * 0.25;
-  }
-  if (raw > max - SNAP_ZONE) {
-    const t = 1 - Math.max(0, (max - raw) / SNAP_ZONE);
-    return clamped + (max - clamped) * t * 0.25;
-  }
-  return clamped;
+interface DragState {
+  active: boolean;
+  startMouseX: number;
+  startMouseY: number;
+  startElX: number;
+  startElY: number;
 }
 
 export function useDraggable(
-  ref: React.RefObject<HTMLElement | null>,
-  handleRef?: React.RefObject<HTMLElement | null>,
-  boundsRef?: React.RefObject<HTMLElement | null>
+  elementRef: React.RefObject<HTMLElement | null>,
+  handleRef: React.RefObject<HTMLElement | null>,
+  initialPosition?: { right: number; bottom: number }
 ) {
-  const isDragging = useRef(false);
-  const position = useRef({ x: 0, y: 0 });
-  const origin = useRef({ x: 0, y: 0 });
-  const bounds = useRef<DragBounds | null>(null);
-  const boundsRefInternal = useRef(boundsRef);
-
-  useEffect(() => {
-    boundsRefInternal.current = boundsRef;
+  const pos = useRef({ x: 0, y: 0 });
+  const drag = useRef<DragState>({
+    active: false,
+    startMouseX: 0,
+    startMouseY: 0,
+    startElX: 0,
+    startElY: 0,
   });
+  const initialized = useRef(false);
+
+  useLayoutEffect(() => {
+    const el = elementRef.current;
+    if (!el || !el.parentElement || initialized.current) return;
+    initialized.current = true;
+
+    const parentRect = el.parentElement.getBoundingClientRect();
+    const elW = el.offsetWidth;
+    const elH = el.offsetHeight;
+
+    const right = initialPosition?.right ?? 20;
+    const bottom = initialPosition?.bottom ?? 20;
+
+    pos.current.x = parentRect.width - elW - right;
+    pos.current.y = parentRect.height - elH - bottom;
+
+    el.style.transform = `translate3d(${pos.current.x}px, ${pos.current.y}px, 0)`;
+  }, [elementRef, initialPosition]);
 
   useEffect(() => {
-    const el = ref.current;
-    const handleEl = handleRef?.current ?? el;
-    if (!el || !handleEl) return;
+    const el = elementRef.current;
+    const handle = handleRef.current ?? el;
+    if (!el || !handle) return;
 
-    const onMouseDown = (e: MouseEvent) => {
-      isDragging.current = true;
-      origin.current = {
-        x: e.clientX - position.current.x,
-        y: e.clientY - position.current.y,
+    const clampToParent = (rawX: number, rawY: number) => {
+      const parent = el.parentElement;
+      if (!parent) return { x: rawX, y: rawY };
+
+      const parentW = parent.clientWidth;
+      const parentH = parent.clientHeight;
+      const elW = el.offsetWidth;
+      const elH = el.offsetHeight;
+
+      const minX = EDGE_MARGIN;
+      const minY = EDGE_MARGIN;
+      const maxX = parentW - elW - EDGE_MARGIN;
+      const maxY = parentH - elH - EDGE_MARGIN;
+
+      return {
+        x: Math.round(Math.min(Math.max(rawX, minX), maxX)),
+        y: Math.round(Math.min(Math.max(rawY, minY), maxY)),
       };
+    };
 
-      const boundsEl = boundsRefInternal.current?.current;
-      bounds.current = boundsEl
-        ? computeBounds(el, boundsEl, position.current)
-        : null;
-
+    const onPointerDown = (e: PointerEvent) => {
+      e.preventDefault();
+      drag.current = {
+        active: true,
+        startMouseX: e.clientX,
+        startMouseY: e.clientY,
+        startElX: pos.current.x,
+        startElY: pos.current.y,
+      };
       el.style.willChange = "transform";
+      handle.style.cursor = "grabbing";
       document.body.style.userSelect = "none";
+      handle.setPointerCapture(e.pointerId);
     };
 
-    const onMouseUp = () => {
-      if (!isDragging.current) return;
-      isDragging.current = false;
-      bounds.current = null;
+    const onPointerMove = (e: PointerEvent) => {
+      if (!drag.current.active) return;
+
+      const dx = e.clientX - drag.current.startMouseX;
+      const dy = e.clientY - drag.current.startMouseY;
+
+      const rawX = drag.current.startElX + dx;
+      const rawY = drag.current.startElY + dy;
+
+      const clamped = clampToParent(rawX, rawY);
+      pos.current.x = clamped.x;
+      pos.current.y = clamped.y;
+
+      el.style.transform = `translate3d(${clamped.x}px, ${clamped.y}px, 0)`;
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (!drag.current.active) return;
+      drag.current.active = false;
       el.style.willChange = "auto";
+      handle.style.cursor = "grab";
       document.body.style.userSelect = "";
+      handle.releasePointerCapture(e.pointerId);
     };
 
-    const updatePosition = (rawX: number, rawY: number) => {
-      if (!el) return;
-
-      let x = rawX;
-      let y = rawY;
-
-      if (bounds.current) {
-        const { minX, minY, maxX, maxY } = bounds.current;
-        x = applySnap(rawX, minX, maxX);
-        y = applySnap(rawY, minY, maxY);
-      }
-
-      position.current = { x, y };
-      el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
-    };
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (!isDragging.current) return;
-      const rawX = e.clientX - origin.current.x;
-      const rawY = e.clientY - origin.current.y;
-      requestAnimationFrame(() => updatePosition(rawX, rawY));
-    };
-
-    handleEl.addEventListener("mousedown", onMouseDown);
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    handle.addEventListener("pointerdown", onPointerDown);
+    handle.addEventListener("pointermove", onPointerMove);
+    handle.addEventListener("pointerup", onPointerUp);
 
     return () => {
-      handleEl.removeEventListener("mousedown", onMouseDown);
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      handle.removeEventListener("pointerdown", onPointerDown);
+      handle.removeEventListener("pointermove", onPointerMove);
+      handle.removeEventListener("pointerup", onPointerUp);
     };
-  }, [ref, handleRef]);
+  }, [elementRef, handleRef]);
 }

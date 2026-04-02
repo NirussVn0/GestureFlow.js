@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles } from "lucide-react";
+import { animate } from "animejs";
 
 export default function Home() {
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -12,21 +13,20 @@ export default function Home() {
   useEffect(() => {
     if (!titleRef.current || !subtitleRef.current) return;
 
-    const { animate } = require("animejs");
-
     animate(titleRef.current, {
-      translateY: [50, 0],
+      y: [50, 0],
       opacity: [0, 1],
       duration: 1200,
+      delay: 200,
       ease: "outExpo",
     });
 
     animate(subtitleRef.current, {
-      translateY: [20, 0],
+      y: [20, 0],
       opacity: [0, 1],
       duration: 1000,
+      delay: 400,
       ease: "outExpo",
-      delay: 200,
     });
   }, []);
 

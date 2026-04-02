@@ -1,4 +1,6 @@
-export class CameraService {
+import { IService } from "./IService";
+
+export class CameraService implements IService<HTMLVideoElement> {
   private static instance: CameraService;
   private stream: MediaStream | null = null;
   private videoElement: HTMLVideoElement | null = null;
@@ -12,9 +14,9 @@ export class CameraService {
     return CameraService.instance;
   }
 
-  public async start(videoElement: HTMLVideoElement): Promise<void> {
+  public async initialize(videoElement: HTMLVideoElement): Promise<void> {
     if (this.stream) {
-      this.stop();
+      this.dispose();
     }
     
     try {
@@ -41,7 +43,7 @@ export class CameraService {
     }
   }
 
-  public stop(): void {
+  public dispose(): void {
     if (this.stream) {
       this.stream.getTracks().forEach((track) => track.stop());
       this.stream = null;

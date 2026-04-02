@@ -3,23 +3,22 @@
 import { useEffect, useRef, useCallback } from "react";
 import { CameraService } from "@/services/CameraService";
 import { FaceTrackingService } from "@/services/FaceTrackingService";
+import { VirtualCamService } from "@/services/VirtualCamService";
 import { useStudioStore } from "@/store/useStudioStore";
 import PIPWindow from "@/components/PIPWindow";
 import { Camera } from "lucide-react";
 
-const PIP_CHANNEL = "gestureflow-pip-stream";
 const HUD_PADDING = 16;
 const HUD_LINE_HEIGHT = 18;
 const HUD_FONT = "600 12px 'Inter', monospace";
+const INFERENCE_INTERVAL_MS = 33;
+const LANDMARK_RADIUS = 1.5;
+const TWO_PI = 2 * Math.PI;
 
-interface MainWorkspaceProps {
-  boundsRef?: React.RefObject<HTMLDivElement | null>;
-}
-
-export default function MainWorkspace({ boundsRef }: MainWorkspaceProps) {
+export default function MainWorkspace() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const channelRef = useRef<BroadcastChannel | null>(null);
+  const outputCanvasRef = useRef<HTMLCanvasElement>(null);
 
   const isCameraActive = useStudioStore((s) => s.isCameraActive);
   const isModelLoaded = useStudioStore((s) => s.isModelLoaded);
@@ -33,32 +32,51 @@ export default function MainWorkspace({ boundsRef }: MainWorkspaceProps) {
   const frameCountRef = useRef<number>(0);
   const fpsRef = useRef<number>(0);
   const facesRef = useRef<number>(0);
+  const lastInferenceTimeRef = useRef<number>(0);
+
   const showOverlayRef = useRef(showStatsOverlay);
-  const showPipRef = useRef(showPip);
+  const showVirtualCamOverlayRef = useRef(false);
+  const faceTrackingEnabledRef = useRef(true);
 
   useEffect(() => { showOverlayRef.current = showStatsOverlay; }, [showStatsOverlay]);
-  useEffect(() => { showPipRef.current = showPip; }, [showPip]);
 
   useEffect(() => {
-    channelRef.current = new BroadcastChannel(PIP_CHANNEL);
-    return () => channelRef.current?.close();
+    const unsub = useStudioStore.subscribe((state) => {
+      showVirtualCamOverlayRef.current = state.showVirtualCamOverlay;
+      faceTrackingEnabledRef.current = state.sensors.faceTracking;
+    });
+    showVirtualCamOverlayRef.current = useStudioStore.getState().showVirtualCamOverlay;
+    faceTrackingEnabledRef.current = useStudioStore.getState().sensors.faceTracking;
+    return unsub;
   }, []);
 
   useEffect(() => {
-    const startCamera = async () => {
-      if (isCameraActive && videoRef.current) {
-        try {
-          await CameraService.getInstance().start(videoRef.current);
-          useStudioStore.getState().setVideoReady(true);
-        } catch { /* camera denied */ }
-      } else {
-        CameraService.getInstance().stop();
-        useStudioStore.getState().setVideoReady(false);
-      }
-    };
-    startCamera();
+    const video = videoRef.current;
+    const outputCanvas = outputCanvasRef.current;
+    if (!video || !outputCanvas) return;
+
+    let isSubscribed = true;
+
+    if (isCameraActive) {
+      CameraService.getInstance()
+        .initialize(video)
+        .then(() => {
+          if (isSubscribed) {
+            VirtualCamService.getInstance().initialize(outputCanvas);
+            useStudioStore.getState().setVideoReady(true);
+          }
+        })
+        .catch(() => {});
+    } else {
+      CameraService.getInstance().dispose();
+      VirtualCamService.getInstance().dispose();
+      useStudioStore.getState().setVideoReady(false);
+    }
+
     return () => {
-      CameraService.getInstance().stop();
+      isSubscribed = false;
+      CameraService.getInstance().dispose();
+      VirtualCamService.getInstance().dispose();
       useStudioStore.getState().setVideoReady(false);
     };
   }, [isCameraActive]);
@@ -92,10 +110,12 @@ export default function MainWorkspace({ boundsRef }: MainWorkspaceProps) {
   useEffect(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!video || !canvas) return;
+    const outputCanvas = outputCanvasRef.current;
+    if (!video || !canvas || !outputCanvas) return;
 
     const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const outputCtx = outputCanvas.getContext("2d");
+    if (!ctx || !outputCtx) return;
 
     const renderLoop = () => {
       const now = performance.now();
@@ -112,6 +132,8 @@ export default function MainWorkspace({ boundsRef }: MainWorkspaceProps) {
         if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
+          outputCanvas.width = video.videoWidth;
+          outputCanvas.height = video.videoHeight;
         }
 
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -121,16 +143,25 @@ export default function MainWorkspace({ boundsRef }: MainWorkspaceProps) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         ctx.restore();
 
-        if (isModelLoaded) {
+        outputCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
+        outputCtx.drawImage(canvas, 0, 0);
+
+        if (
+          isModelLoaded &&
+          faceTrackingEnabledRef.current &&
+          now - lastInferenceTimeRef.current > INFERENCE_INTERVAL_MS
+        ) {
+          lastInferenceTimeRef.current = now;
           const results = FaceTrackingService.getInstance().detectForVideo(video, now);
           if (results && results.faceLandmarks.length > 0) {
             facesRef.current = results.faceLandmarks.length;
             setFacesDetected(results.faceLandmarks.length);
+
             ctx.fillStyle = "#F5C518";
             for (const marks of results.faceLandmarks) {
               for (const pt of marks) {
                 ctx.beginPath();
-                ctx.arc((1 - pt.x) * canvas.width, pt.y * canvas.height, 1.5, 0, 2 * Math.PI);
+                ctx.arc((1 - pt.x) * canvas.width, pt.y * canvas.height, LANDMARK_RADIUS, 0, TWO_PI);
                 ctx.fill();
               }
             }
@@ -140,15 +171,16 @@ export default function MainWorkspace({ boundsRef }: MainWorkspaceProps) {
           }
         }
 
+        if (!faceTrackingEnabledRef.current) {
+          facesRef.current = 0;
+        }
+
         if (showOverlayRef.current) {
           drawHud(ctx, canvas.height, fpsRef.current, facesRef.current);
         }
 
-        if (showPipRef.current && channelRef.current && canvas.width > 0) {
-          createImageBitmap(canvas).then((bmp) => {
-            (channelRef.current as BroadcastChannel & { postMessage(msg: unknown, transfer: Transferable[]): void })
-              .postMessage({ bitmap: bmp }, [bmp]);
-          });
+        if (showVirtualCamOverlayRef.current) {
+          drawHud(outputCtx, outputCanvas.height, fpsRef.current, facesRef.current);
         }
       }
 
@@ -160,6 +192,7 @@ export default function MainWorkspace({ boundsRef }: MainWorkspaceProps) {
       requestRef.current = requestAnimationFrame(renderLoop);
     } else {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      outputCtx.clearRect(0, 0, outputCanvas.width, outputCanvas.height);
       setFacesDetected(0);
       setFps(0);
     }
@@ -193,7 +226,9 @@ export default function MainWorkspace({ boundsRef }: MainWorkspaceProps) {
         style={{ objectFit: "cover", display: "block" }}
       />
 
-      {showPip && <PIPWindow channelName={PIP_CHANNEL} boundsRef={boundsRef} />}
+      <canvas ref={outputCanvasRef} className="hidden" />
+
+      {showPip && <PIPWindow />}
     </div>
   );
 }

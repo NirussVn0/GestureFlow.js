@@ -4,35 +4,12 @@ import { useEffect, useState } from "react";
 import {
   Camera,
   Cpu,
-  Eye,
-  Layers,
   Monitor,
-  Sun,
-  Moon,
   Activity,
 } from "lucide-react";
 import { useStudioStore } from "@/store/useStudioStore";
 import { FaceTrackingService } from "@/services/FaceTrackingService";
 import { HardwareService } from "@/services/HardwareService";
-
-function Toggle({
-  value,
-  onChange,
-}: {
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <button
-      role="switch"
-      aria-checked={value}
-      onClick={() => onChange(!value)}
-      className={`toggle-switch ${value ? "on" : ""}`}
-    >
-      <div className="toggle-knob" />
-    </button>
-  );
-}
 
 function StatRow({ label, value }: { label: string; value: string | number }) {
   return (
@@ -52,23 +29,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function SettingRow({ icon: Icon, label, value, onChange }: {
-  icon: React.ElementType;
-  label: string;
-  value: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between">
-      <div className="flex items-center gap-2">
-        <Icon size={14} style={{ color: "var(--color-text-muted)" }} />
-        <span className="text-xs" style={{ color: "var(--color-text)" }}>{label}</span>
-      </div>
-      <Toggle value={value} onChange={onChange} />
-    </div>
-  );
-}
-
 export default function RightPanel() {
   const isCameraActive = useStudioStore((s) => s.isCameraActive);
   const setCameraActive = useStudioStore((s) => s.setCameraActive);
@@ -76,12 +36,6 @@ export default function RightPanel() {
   const setModelLoaded = useStudioStore((s) => s.setModelLoaded);
   const fps = useStudioStore((s) => s.fps);
   const facesDetected = useStudioStore((s) => s.facesDetected);
-  const theme = useStudioStore((s) => s.theme);
-  const toggleTheme = useStudioStore((s) => s.toggleTheme);
-  const showStatsOverlay = useStudioStore((s) => s.showStatsOverlay);
-  const setShowStatsOverlay = useStudioStore((s) => s.setShowStatsOverlay);
-  const showPip = useStudioStore((s) => s.showPip);
-  const setShowPip = useStudioStore((s) => s.setShowPip);
   const hardwareInfo = useStudioStore((s) => s.hardwareInfo);
   const setHardwareInfo = useStudioStore((s) => s.setHardwareInfo);
 
@@ -119,8 +73,8 @@ export default function RightPanel() {
     : "Detecting…";
 
   return (
-    <aside
-      className="flex flex-col overflow-y-auto border-l"
+    <div
+      className="flex flex-col h-full overflow-y-auto border-l shrink-0 w-full"
       style={{
         background: "var(--color-surface)",
         borderColor: "var(--color-border)",
@@ -161,16 +115,7 @@ export default function RightPanel() {
         <StatRow label="Faces Detected" value={facesDetected} />
       </Section>
 
-      <Section title="Settings">
-        <SettingRow icon={Eye} label="Stats Overlay" value={showStatsOverlay} onChange={setShowStatsOverlay} />
-        <SettingRow icon={Layers} label="Virtual PIP Window" value={showPip} onChange={setShowPip} />
-        <SettingRow
-          icon={theme === "dark" ? Moon : Sun}
-          label={theme === "dark" ? "Dark Mode" : "Light Mode"}
-          value={theme === "dark"}
-          onChange={() => toggleTheme()}
-        />
-      </Section>
+
 
       <Section title="Hardware">
         <div className="flex flex-col gap-0.5">
@@ -208,6 +153,6 @@ export default function RightPanel() {
           </span>
         </div>
       </div>
-    </aside>
+    </div>
   );
 }

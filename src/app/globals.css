@@ -43,10 +43,10 @@ body {
 }
 
 .studio-layout {
-  display: grid;
-  grid-template-columns: var(--sidebar-width) 1fr var(--right-panel-width);
+  display: flex;
   height: 100vh;
   overflow: hidden;
+  width: 100vw;
 }
 
 .gold-gradient {

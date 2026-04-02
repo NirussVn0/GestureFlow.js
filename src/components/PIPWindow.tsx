@@ -1,118 +1,109 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
-import { useDraggable } from "@/hooks/useDraggable";
+import { useRef, useState, useEffect } from "react";
 import { useStudioStore } from "@/store/useStudioStore";
+import { VirtualCamService } from "@/services/VirtualCamService";
 import { X, Maximize2 } from "lucide-react";
+import { useDraggable } from "@/hooks/useDraggable";
 
-const PIP_WIDTH = 280;
-const PIP_HEIGHT = 158;
-const PIP_MARGIN = 16;
-
-interface PIPWindowProps {
-  channelName: string;
-  boundsRef?: React.RefObject<HTMLElement | null>;
-}
-
-export default function PIPWindow({ channelName, boundsRef }: PIPWindowProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export default function PIPWindow() {
+  const rootRef = useRef<HTMLDivElement>(null);
   const handleRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const requestRef = useRef<number>(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
 
-  useDraggable(containerRef, handleRef, boundsRef);
+  useDraggable(rootRef, handleRef, { right: 20, bottom: 20 });
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const unsubscribe = VirtualCamService.getInstance().subscribe((newStream) => {
+      setStream(newStream);
+    });
+    return () => unsubscribe();
+  }, []);
 
-    const channel = new BroadcastChannel(channelName);
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
 
-    channel.onmessage = (e: MessageEvent<{ bitmap: ImageBitmap }>) => {
-      cancelAnimationFrame(requestRef.current);
-      requestRef.current = requestAnimationFrame(() => {
-        const bmp = e.data.bitmap;
-        canvas.width = bmp.width;
-        canvas.height = bmp.height;
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(bmp, 0, 0);
-        bmp.close();
-      });
-    };
-
-    return () => {
-      channel.close();
-      cancelAnimationFrame(requestRef.current);
-    };
-  }, [channelName]);
-
-  const handlePopOut = useCallback(() => {
+  const handlePopOut = () => {
     window.open(
       "/studio/pip-output",
       "gestureflow-pip",
-      `width=${PIP_WIDTH * 2},height=${PIP_HEIGHT * 2},toolbar=no,menubar=no,scrollbars=no,resizable=yes`
+      "width=560,height=316,toolbar=no,menubar=no,scrollbars=no,resizable=yes"
     );
-  }, []);
+  };
+
+  const handleClose = () => {
+    useStudioStore.getState().setShowPip(false);
+  };
 
   return (
     <div
-      ref={containerRef}
-      className="pip-handle absolute bottom-0 right-0"
+      ref={rootRef}
+      className="absolute top-0 left-0 z-40"
       style={{
-        width: PIP_WIDTH,
-        height: PIP_HEIGHT + 32,
-        marginBottom: PIP_MARGIN,
-        marginRight: PIP_MARGIN,
+        width: 280,
+        height: 190,
         borderRadius: 12,
-        overflow: "hidden",
         border: "1px solid var(--color-border)",
         background: "#000",
         boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
-        willChange: "transform",
-        zIndex: 40,
+        overflow: "hidden",
       }}
     >
-      <div
-        ref={handleRef}
-        className="pip-handle flex items-center justify-between px-3"
-        style={{
-          height: 32,
-          background: "var(--color-surface)",
-          borderBottom: "1px solid var(--color-border)",
-          cursor: "grab",
-        }}
-      >
-        <span
-          className="gold-gradient text-[10px] font-bold tracking-widest uppercase select-none"
+      <div className="flex flex-col w-full h-full">
+        <div
+          ref={handleRef}
+          className="flex items-center justify-between px-3 shrink-0"
+          style={{
+            height: 32,
+            background: "var(--color-surface)",
+            borderBottom: "1px solid var(--color-border)",
+            cursor: "grab",
+          }}
         >
-          Virtual Cam
-        </span>
-        <div className="flex gap-1.5">
-          <button
-            onClick={handlePopOut}
-            title="Pop out to new window"
-            style={{ color: "var(--color-text-muted)" }}
-            className="hover:text-white transition-colors"
-          >
-            <Maximize2 size={12} />
-          </button>
-          <button
-            onClick={() => useStudioStore.getState().setShowPip(false)}
-            title="Hide PIP"
-            style={{ color: "var(--color-text-muted)" }}
-            className="hover:text-red-400 transition-colors"
-          >
-            <X size={12} />
-          </button>
+          <span className="gold-gradient text-[10px] font-bold tracking-widest uppercase select-none">
+            Virtual Cam
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={handlePopOut}
+              title="Pop out to new window"
+              className="flex items-center justify-center w-5 h-5 rounded hover:bg-white/10 transition-colors"
+              style={{ color: "var(--color-text-muted)" }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <Maximize2 size={11} />
+            </button>
+            <button
+              onClick={handleClose}
+              title="Hide PIP"
+              className="flex items-center justify-center w-5 h-5 rounded hover:bg-red-500/20 transition-colors"
+              style={{ color: "var(--color-text-muted)" }}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <X size={11} />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 w-full bg-black relative">
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          {!stream && (
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-white/50">
+              No signal
+            </div>
+          )}
         </div>
       </div>
-
-      <canvas
-        ref={canvasRef}
-        style={{ width: "100%", height: PIP_HEIGHT, display: "block", objectFit: "cover" }}
-      />
     </div>
   );
 }

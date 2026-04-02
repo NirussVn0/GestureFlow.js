@@ -7,6 +7,12 @@ export interface HardwareInfo {
   deviceMemoryGb: number | "unknown";
 }
 
+interface SensorFlags {
+  faceTracking: boolean;
+  handTracking: boolean;
+  bodyTracking: boolean;
+}
+
 interface StudioState {
   isCameraActive: boolean;
   setCameraActive: (active: boolean) => void;
@@ -32,8 +38,16 @@ interface StudioState {
   showPip: boolean;
   setShowPip: (show: boolean) => void;
 
+  showVirtualCamOverlay: boolean;
+  setShowVirtualCamOverlay: (show: boolean) => void;
+
+  sensors: SensorFlags;
+  setSensor: (key: keyof SensorFlags, value: boolean) => void;
+
   hardwareInfo: HardwareInfo | null;
+  isSettingsOpen: boolean;
   setHardwareInfo: (info: HardwareInfo) => void;
+  setSettingsOpen: (isOpen: boolean) => void;
 }
 
 export const useStudioStore = create<StudioState>()(
@@ -64,8 +78,23 @@ export const useStudioStore = create<StudioState>()(
       showPip: true,
       setShowPip: (show) => set({ showPip: show }),
 
+      showVirtualCamOverlay: false,
+      setShowVirtualCamOverlay: (show) => set({ showVirtualCamOverlay: show }),
+
+      sensors: {
+        faceTracking: true,
+        handTracking: false,
+        bodyTracking: false,
+      },
+      setSensor: (key, value) =>
+        set((state) => ({
+          sensors: { ...state.sensors, [key]: value },
+        })),
+
       hardwareInfo: null,
+      isSettingsOpen: false,
       setHardwareInfo: (info) => set({ hardwareInfo: info }),
+      setSettingsOpen: (isOpen) => set({ isSettingsOpen: isOpen }),
     }),
     {
       name: "gestureflow-studio-prefs",
@@ -73,6 +102,8 @@ export const useStudioStore = create<StudioState>()(
         theme: state.theme,
         showStatsOverlay: state.showStatsOverlay,
         showPip: state.showPip,
+        showVirtualCamOverlay: state.showVirtualCamOverlay,
+        sensors: state.sensors,
       }),
     }
   )

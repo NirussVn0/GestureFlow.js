@@ -2,6 +2,7 @@
 
 import { Home, Clapperboard, Settings, HelpCircle } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
+import { useStudioStore } from "@/store/useStudioStore";
 
 const NAV_ITEMS = [
   { icon: Home, label: "Home", path: "/" },
@@ -12,6 +13,7 @@ const NAV_ITEMS = [
 
 export default function LeftNavBar() {
   const pathname = usePathname();
+  const setSettingsOpen = useStudioStore((s) => s.setSettingsOpen);
   const router = useRouter();
 
   return (
@@ -32,7 +34,13 @@ export default function LeftNavBar() {
           return (
             <button
               key={label}
-              onClick={() => router.push(path)}
+              onClick={() => {
+                if (label === "Settings") {
+                  setSettingsOpen(true);
+                } else {
+                  router.push(path);
+                }
+              }}
               title={label}
               className={`nav-icon-btn ${isActive ? "active" : ""}`}
             >
