@@ -2,7 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import anime from "animejs";
 import { Sparkles } from "lucide-react";
 
 export default function Home() {
@@ -11,6 +10,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!titleRef.current) return;
+
+    const anime = require("animejs");
 
     anime({
       targets: titleRef.current,
