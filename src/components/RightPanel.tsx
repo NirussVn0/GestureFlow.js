@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Camera,
   Cpu,
@@ -84,6 +84,12 @@ export default function RightPanel() {
   const setShowPip = useStudioStore((s) => s.setShowPip);
   const hardwareInfo = useStudioStore((s) => s.hardwareInfo);
   const setHardwareInfo = useStudioStore((s) => s.setHardwareInfo);
+
+  const [screenResolution, setScreenResolution] = useState("—");
+
+  useEffect(() => {
+    setScreenResolution(`${window.screen.width}×${window.screen.height}`);
+  }, []);
 
   useEffect(() => {
     const info = HardwareService.getInstance().detect();
@@ -192,7 +198,7 @@ export default function RightPanel() {
         <div className="flex items-center gap-1.5">
           <Monitor size={12} style={{ color: "var(--color-text-muted)" }} />
           <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
-            {typeof window !== "undefined" ? `${window.screen.width}×${window.screen.height}` : "—"}
+            {screenResolution}
           </span>
         </div>
         <div className="flex items-center gap-1.5 mt-1">

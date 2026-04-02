@@ -5,6 +5,7 @@ import { CameraService } from "@/services/CameraService";
 import { FaceTrackingService } from "@/services/FaceTrackingService";
 import { useStudioStore } from "@/store/useStudioStore";
 import PIPWindow from "@/components/PIPWindow";
+import { Camera } from "lucide-react";
 
 const PIP_CHANNEL = "gestureflow-pip-stream";
 const HUD_PADDING = 16;
@@ -170,7 +171,7 @@ export default function MainWorkspace() {
             className="w-16 h-16 rounded-2xl flex items-center justify-center"
             style={{ background: "var(--color-gold-glow)", border: "1px solid var(--color-gold)" }}
           >
-            <span className="text-2xl">📷</span>
+            <Camera size={28} style={{ color: "var(--color-gold)" }} />
           </div>
           <div className="text-center">
             <p style={{ color: "var(--color-text-muted)" }} className="text-sm">Camera is offline</p>

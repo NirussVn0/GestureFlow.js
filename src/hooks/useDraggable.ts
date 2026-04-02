@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react";
 
+const SNAP_THRESHOLD = 48;
+const SNAP_STRENGTH = 0.18;
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 export function useDraggable(
   ref: React.RefObject<HTMLElement | null>,
   handleRef?: React.RefObject<HTMLElement | null>,
@@ -21,6 +28,22 @@ export function useDraggable(
 
     const clamp = (value: number, min: number, max: number) =>
       Math.min(Math.max(value, min), max);
+
+    const applyMagneticSnap = (
+      raw: number,
+      min: number,
+      max: number
+    ): number => {
+      const clampedRaw = clamp(raw, min, max);
+
+      if (raw < min + SNAP_THRESHOLD) {
+        return lerp(clampedRaw, min, SNAP_STRENGTH);
+      }
+      if (raw > max - SNAP_THRESHOLD) {
+        return lerp(clampedRaw, max, SNAP_STRENGTH);
+      }
+      return clampedRaw;
+    };
 
     const onMouseDown = (e: MouseEvent) => {
       isDragging.current = true;
@@ -53,8 +76,9 @@ export function useDraggable(
         const minY = boundsRect.top - elRect.top + position.current.y;
         const maxX = minX + boundsRect.width - elRect.width;
         const maxY = minY + boundsRect.height - elRect.height;
-        x = clamp(rawX, minX, maxX);
-        y = clamp(rawY, minY, maxY);
+
+        x = applyMagneticSnap(rawX, minX, maxX);
+        y = applyMagneticSnap(rawY, minY, maxY);
       }
 
       position.current = { x, y };
