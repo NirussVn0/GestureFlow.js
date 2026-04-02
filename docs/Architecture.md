@@ -2,12 +2,13 @@
 
 ## Overview
 
-GestureFlow.js is an in-browser AI sandbox built on Next.js 15 (App Router), TypeScript, TailwindCSS v4, Zustand, and Google MediaPipe Tasks Vision. It provides a real-time studio environment for computer vision experimentation — face landmark tracking, gesture recognition, and virtual camera streaming — with zero backend required.
+GestureFlow.js is an in-browser AI studio built with Next.js 16 (App Router + Turbopack), TypeScript (strict mode), TailwindCSS v4, Zustand, and Google MediaPipe Tasks Vision. It provides a real-time environment for computer vision experimentation — face landmark tracking, hand gesture recognition, body pose estimation, and virtual camera streaming — with zero backend required.
 
-The architecture is designed around three non-negotiable axes:
-1. **Zero re-render** on camera/AI frames — all hot paths use `requestAnimationFrame` + DOM refs.
-2. **Singleton services** — camera, face tracking, and hardware detection are instantiated once, never recreated.
-3. **Strict TypeScript** — no `any`, no `@ts-ignore`, no suppressed errors.
+The architecture enforces three non-negotiable principles:
+
+1. **Zero re-render on hot paths** — all camera/AI frames use `requestAnimationFrame` + DOM refs, never `setState`.
+2. **Singleton services** via private constructors implementing `IService<T>` — camera, face tracking, virtual cam, and hardware detection are instantiated exactly once.
+3. **Strict TypeScript** — no `any`, no `as Type`, no `@ts-ignore`, no dead code, no inline comments.
 
 ---
 
@@ -17,107 +18,152 @@ The architecture is designed around three non-negotiable axes:
 GestureFlow.js/
 ├── src/
 │   ├── app/
-│   │   ├── page.tsx                   # Landing page — Anime.js entrance animations
+│   │   ├── page.tsx                     # Landing — anime.js v4 entrance animations
 │   │   ├── studio/
-│   │   │   ├── page.tsx               # 3-column studio layout (64px nav + canvas + 280px panel)
-│   │   │   └── pip-output/page.tsx    # Standalone PIP receiver via BroadcastChannel
-│   │   ├── globals.css                # Design tokens (gold/black theme, light mode class)
-│   │   └── layout.tsx                 # Root layout with suppressHydrationWarning
+│   │   │   ├── page.tsx                 # Studio layout (LeftNav + Workspace + RightPanel)
+│   │   │   └── pip-output/page.tsx      # Standalone PIP output receiver
+│   │   ├── globals.css                  # Design tokens (gold/black, light mode, toggle styles)
+│   │   └── layout.tsx                   # Root layout with suppressHydrationWarning
 │   ├── components/
-│   │   ├── LeftNavBar.tsx             # 64px icon sidebar — Home / Studio / Settings / Help
-│   │   ├── MainWorkspace.tsx          # Canvas rendering: video + landmarks + HUD + BroadcastChannel
-│   │   ├── PIPWindow.tsx              # Bounded draggable virtual cam window + pop-out button
-│   │   └── RightPanel.tsx             # Settings toggles, AI status, hardware info, FPS/face counters
+│   │   ├── LeftNavBar.tsx               # 64px icon sidebar — navigation icons (lucide-react)
+│   │   ├── MainWorkspace.tsx            # Dual-canvas render loop: display + clean output
+│   │   ├── PIPWindow.tsx                # Draggable virtual cam preview (PointerEvent-based)
+│   │   ├── RightPanel.tsx               # Control Panel — camera toggle, AI stats, sensor toggles, hardware
+│   │   └── SettingsModal.tsx            # Settings — sensor config, display prefs, theme
 │   ├── hooks/
-│   │   └── useDraggable.ts            # rAF-based drag hook with optional bounds clamping
+│   │   ├── useDraggable.ts             # PointerEvent + setPointerCapture drag with parent clamping
+│   │   └── useResizer.ts               # PointerEvent-based panel resizer with collapse/expand
 │   ├── services/
-│   │   ├── CameraService.ts           # Singleton — MediaStream lifecycle management
-│   │   ├── FaceTrackingService.ts     # Singleton — MediaPipe FaceLandmarker, GPU delegate
-│   │   └── HardwareService.ts         # Singleton — CPU cores, GPU renderer, device RAM
+│   │   ├── IService.ts                 # Generic interface: initialize(config) / dispose()
+│   │   ├── CameraService.ts            # Singleton — MediaStream lifecycle
+│   │   ├── FaceTrackingService.ts       # Singleton — MediaPipe FaceLandmarker (GPU delegate)
+│   │   ├── VirtualCamService.ts         # Singleton — canvas.captureStream(30) output pipeline
+│   │   └── HardwareService.ts           # Singleton — CPU, GPU, RAM detection
 │   └── store/
-│       └── useStudioStore.ts          # Zustand store with persist middleware (theme, overlay prefs)
+│       └── useStudioStore.ts            # Zustand + persist (theme, sensors, overlays)
 ├── docs/
-│   ├── Architecture.md                # This file
-│   └── task_phase_1_report.md         # Phase 1 & 2 completion report
+│   ├── Architecture.md                  # This file
+│   └── task_phase_1_report.md           # Phase 1 completion report
 ```
 
 ---
 
 ## Core Architectural Decisions
 
-### 1. Singleton Service Pattern
+### 1. IService Interface + Private-Constructor Singletons
 
-Camera, face tracking, and hardware detection are implemented as static singleton classes. This guarantees:
-- A single `MediaStream` instance — no duplicate webcam requests.
-- MediaPipe WASM loads once, regardless of component mount/unmount cycles.
-- No memory leaks when components re-render or route changes.
+All services implement `IService<TConfig>`:
 
 ```ts
-// Usage pattern — same instance everywhere
-const service = FaceTrackingService.getInstance();
+interface IService<T> {
+  initialize(config: T): void | Promise<void>;
+  dispose(): void;
+}
 ```
 
-### 2. Zero Re-Render Pipeline (rAF + Canvas)
+Each service uses `private constructor()` + `static getInstance()` to guarantee:
+- A single `MediaStream` — no duplicate webcam requests.
+- MediaPipe WASM loaded once per session, regardless of component cycles.
+- Deterministic cleanup via `dispose()` in `useEffect` return.
 
-The entire rendering hot path — video decoding, landmark detection, HUD drawing — runs inside a single `requestAnimationFrame` loop in `MainWorkspace`. React state is updated only once per second (for FPS display). Everything else operates through `useRef` directly on the DOM.
+### 2. Dual-Canvas Zero Re-Render Pipeline
+
+`MainWorkspace` operates two canvases in a single `requestAnimationFrame` loop:
 
 ```
-rAF loop → ctx.drawImage(video) → MediaPipe.detectForVideo() → ctx.fillText(HUD) → schedule next rAF
+rAF loop:
+  1. ctx.drawImage(video) → display canvas (mirrored)
+  2. outputCtx.drawImage(displayCanvas) → clean output canvas (before AI overlays)
+  3. if (sensors.faceTracking) → FaceLandmarker.detectForVideo() → draw landmarks on display canvas
+  4. if (showStatsOverlay) → drawHud() on display canvas
+  5. if (showVirtualCamOverlay) → draw landmarks + drawHud() on output canvas
+  6. schedule next rAF
 ```
 
-**Performance rules enforced:**
-- `getBoundingClientRect()` only on `mouseenter` / `ResizeObserver` — never per-mousemove.
-- No `new` objects inside the rAF loop.
-- rAF loop self-cancels via `cancelAnimationFrame(ref.current)` in the `useEffect` cleanup.
+The output canvas feeds `VirtualCamService` via `canvas.captureStream(30)`. When `showVirtualCamOverlay` is OFF, the virtual cam receives a **clean frame** (no landmarks, no HUD). When ON, it mirrors the full studio view.
 
-### 3. useDraggable Hook — Bounded rAF Drag
+**Performance constraints enforced:**
+- `useRef` for all coordinates — zero React state in rAF.
+- Sensor flags read via `useStudioStore.subscribe()` → `useRef` (no re-renders on toggle).
+- `cancelAnimationFrame()` in cleanup — no zombie loops.
+- Magic numbers extracted to module-scope constants.
 
-The `useDraggable` hook achieves 60fps drag without any React state:
-1. `mousedown` → record origin relative to current `position.current`.
-2. `mousemove` → compute new raw coordinates, pass to `requestAnimationFrame`.
-3. rAF callback → optionally clamp within `boundsRef` element bounds → apply `translate3d(x,y,0)` directly to `el.style.transform`.
+### 3. useDraggable — PointerEvent + setPointerCapture
 
-The `boundsRef` parameter constrains the dragged element to stay within a given parent container — used by `PIPWindow` to prevent it from leaving the center canvas column.
+The `useDraggable` hook achieves jitter-free drag without React state:
 
-### 4. BroadcastChannel Virtual Camera Stream
+1. `pointerdown` → snapshot `{startMouseX/Y, startElX/Y}`, call `setPointerCapture(pointerId)`.
+2. `pointermove` → compute `delta = currentMouse - startMouse`, apply `translate3d` to `el.style.transform`.
+3. `pointerup` → `releasePointerCapture(pointerId)`.
 
-The virtual camera PIP feature uses the browser `BroadcastChannel` API:
-- `MainWorkspace` calls `createImageBitmap(canvas)` after each frame and posts the transferable bitmap to `gestureflow-pip-stream`.
-- `PIPWindow` listens on the same channel and renders the received bitmap to its own canvas via rAF.
-- `pip-output/page.tsx` listens on the same channel — opened via `window.open()` — and renders the stream in a dedicated browser window.
+Initial positioning is computed inside the hook via `useLayoutEffect` using `parentElement.getBoundingClientRect()` — fully SSR-safe (no `window` access during render).
 
-`ImageBitmap` is a transferable object, meaning zero-copy transfer between the rendering context and the receiver. This has negligible CPU overhead.
+Parent clamping enforces `EDGE_MARGIN = 12px` via `Math.min/max` against `parentElement.clientWidth/Height`.
 
-> **Note:** `BroadcastChannel` is not supported in Safari. The implementation targets Chrome/Edge (the practical deployment target for a WebGL/WebAssembly AI studio).
+### 4. useResizer — Collapsible Panel Divider
 
-### 5. Zustand Store with Persist Middleware
+The `useResizer` hook manages the studio's resizable right panel:
 
-The global `useStudioStore` manages UI state only — never service state. Persistent preferences (theme, overlay toggles) are saved to `localStorage` via Zustand `persist` middleware so they survive page refreshes.
+- **Pointer Events with capture** — bulletproof tracking even over canvas/video elements.
+- **Collapse threshold (60px)** — dragging past this snaps the panel to `width: 0`.
+- **Double-click** separator to toggle collapse/expand.
+- **Constraints** — min 200px, max 45% of container (capped at 600px).
+
+### 5. Sensor Flags (Face / Hand / Body)
+
+Three sensor toggles are stored in Zustand as `SensorFlags`:
 
 ```ts
-// Partialise — only persist UI preferences, not runtime data
-partialize: (state) => ({ theme, showStatsOverlay, showPip })
+interface SensorFlags {
+  faceTracking: boolean;   // MediaPipe FaceLandmarker
+  handTracking: boolean;   // MediaPipe HandLandmarker (planned)
+  bodyTracking: boolean;   // MediaPipe PoseLandmarker (planned)
+}
 ```
 
-### 6. Theme System
+Currently, **Face Tracking** is fully implemented with MediaPipe FaceLandmarker (GPU delegate, 468 landmarks, up to 2 faces). Hand and Body tracking services are architecturally planned and will follow the same `IService` pattern.
 
-Two themes are supported — `dark` (default) and `light` — using CSS custom properties:
+The sensor toggles are exposed in both:
+- **Settings Modal** — full configuration with descriptions
+- **Control Panel (RightPanel)** — quick on/off toggles for studio workflow
+
+### 6. VirtualCamService — Clean Output Pipeline
+
+The virtual camera captures from the **output canvas** (not the display canvas):
+
+```
+Output Canvas → captureStream(30fps) → MediaStream → PIPWindow <video srcObject>
+                                                    → pip-output/page.tsx (pop-out)
+```
+
+User can toggle `showVirtualCamOverlay` in Settings to optionally include AI landmarks and HUD stats on the virtual cam output.
+
+### 7. Zustand Store with Persist
+
+Persistent preferences saved to `localStorage`:
+
+```ts
+partialize: (state) => ({
+  theme,
+  showStatsOverlay,
+  showPip,
+  showVirtualCamOverlay,
+  sensors,   // { faceTracking, handTracking, bodyTracking }
+})
+```
+
+Runtime-only state (fps, facesDetected, hardwareInfo) is never persisted.
+
+### 8. Theme System
+
+Dual theme (dark/light) via CSS custom properties:
 
 ```css
 :root { --color-bg: #080808; --color-gold: #F5C518; }
 .theme-light { --color-bg: #F5F5F0; }
 ```
 
-The `theme-light` class is applied to the root `<div>` in `studio/page.tsx` based on the Zustand store value, with no JavaScript style injection — pure CSS variable cascade.
-
-### 7. Hardware Detection
-
-`HardwareService` runs once on panel mount and caches:
-- `navigator.hardwareConcurrency` — logical CPU cores
-- `navigator.deviceMemory` — RAM estimate (Chrome/Edge only, fallback `"unknown"`)
-- WebGL `UNMASKED_RENDERER_WEBGL` extension — actual GPU name
-
-This data is displayed in the right panel Settings and used for adaptive AI delegate selection (GPU vs CPU fallback).
+Applied via class toggle on root `<div>` — pure CSS cascade, no JS style injection.
 
 ---
 
@@ -125,8 +171,17 @@ This data is displayed in the right panel Settings and used for adaptive AI dele
 
 | Resource | Target | Implementation |
 |---|---|---|
-| Frame time | < 16ms (60fps) | rAF loop, no React re-renders per frame |
-| Main thread | Free for AI | Services run in same thread but MediaPipe internally uses WASM threads |
-| Memory | No leaks | Singleton services + explicit `cancelAnimationFrame` + `channel.close()` cleanup |
-| Canvas DPR | Capped at 1.5 | `Math.min(devicePixelRatio, 1.5)` on offscreen canvases |
-| BroadcastChannel | Zero-copy | `ImageBitmap` transferred (not cloned) |
+| Frame time | < 16ms (60fps) | rAF loop, zero React re-renders per frame |
+| Drag tracking | 0 dropped frames | PointerEvent + setPointerCapture on handle |
+| AI inference | ~30fps throttled | 33ms interval gate in rAF loop |
+| Memory | No leaks | Private-constructor singletons + explicit dispose() |
+| Virtual Cam | Zero-copy stream | canvas.captureStream(30) — browser-native pipeline |
+| Layout resize | Zero React state | DOM-direct width manipulation via useResizer |
+
+---
+
+## Credits
+
+Built by **NirussVn0** — Fullstack Developer & AI Engineer.
+
+Technology Stack: Next.js 16 · TypeScript · TailwindCSS v4 · Zustand · MediaPipe Tasks Vision · anime.js v4 · lucide-react
