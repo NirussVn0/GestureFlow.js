@@ -27,6 +27,14 @@ export class FaceTrackingService {
   public async initialize(config: FaceTrackingConfig): Promise<void> {
     if (this.isLoaded) return;
 
+    const originalWarn = console.warn;
+    console.warn = (...args) => {
+      if (typeof args[0] === "string" && (args[0].includes("gl_context.cc") || args[0].includes("face_landmarker_graph.cc"))) {
+        return;
+      }
+      originalWarn(...args);
+    };
+
     try {
       const vision = await FilesetResolver.forVisionTasks(
         "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
