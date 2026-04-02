@@ -12,7 +12,11 @@ const HUD_PADDING = 16;
 const HUD_LINE_HEIGHT = 18;
 const HUD_FONT = "600 12px 'Inter', monospace";
 
-export default function MainWorkspace() {
+interface MainWorkspaceProps {
+  boundsRef?: React.RefObject<HTMLDivElement | null>;
+}
+
+export default function MainWorkspace({ boundsRef }: MainWorkspaceProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const channelRef = useRef<BroadcastChannel | null>(null);
@@ -189,7 +193,7 @@ export default function MainWorkspace() {
         style={{ objectFit: "cover", display: "block" }}
       />
 
-      {showPip && <PIPWindow channelName={PIP_CHANNEL} />}
+      {showPip && <PIPWindow channelName={PIP_CHANNEL} boundsRef={boundsRef} />}
     </div>
   );
 }

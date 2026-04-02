@@ -19,7 +19,7 @@ export default function StudioPage() {
         className="relative overflow-hidden"
         style={{ background: "#000" }}
       >
-        <MainWorkspace />
+        <MainWorkspace boundsRef={centerRef} />
       </div>
 
       <RightPanel />

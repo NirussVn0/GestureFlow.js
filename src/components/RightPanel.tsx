@@ -197,7 +197,7 @@ export default function RightPanel() {
       <div className="px-4 py-3 border-t" style={{ borderColor: "var(--color-border)" }}>
         <div className="flex items-center gap-1.5">
           <Monitor size={12} style={{ color: "var(--color-text-muted)" }} />
-          <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+          <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }} suppressHydrationWarning>
             {screenResolution}
           </span>
         </div>
