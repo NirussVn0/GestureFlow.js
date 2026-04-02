@@ -157,13 +157,21 @@ export default function MainWorkspace() {
             facesRef.current = results.faceLandmarks.length;
             setFacesDetected(results.faceLandmarks.length);
 
-            ctx.fillStyle = "#F5C518";
-            for (const marks of results.faceLandmarks) {
-              for (const pt of marks) {
-                ctx.beginPath();
-                ctx.arc((1 - pt.x) * canvas.width, pt.y * canvas.height, LANDMARK_RADIUS, 0, TWO_PI);
-                ctx.fill();
+            const drawLandmarks = (target: CanvasRenderingContext2D, w: number, h: number) => {
+              target.fillStyle = "#F5C518";
+              for (const marks of results.faceLandmarks) {
+                for (const pt of marks) {
+                  target.beginPath();
+                  target.arc((1 - pt.x) * w, pt.y * h, LANDMARK_RADIUS, 0, TWO_PI);
+                  target.fill();
+                }
               }
+            };
+
+            drawLandmarks(ctx, canvas.width, canvas.height);
+
+            if (showVirtualCamOverlayRef.current) {
+              drawLandmarks(outputCtx, outputCanvas.width, outputCanvas.height);
             }
           } else {
             facesRef.current = 0;

@@ -6,6 +6,9 @@ import {
   Cpu,
   Monitor,
   Activity,
+  ScanFace,
+  Hand,
+  PersonStanding,
 } from "lucide-react";
 import { useStudioStore } from "@/store/useStudioStore";
 import { FaceTrackingService } from "@/services/FaceTrackingService";
@@ -29,6 +32,61 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function MiniToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      onClick={() => onChange(!value)}
+      className="relative w-8 h-4 rounded-full transition-colors duration-200 shrink-0"
+      style={{ background: value ? "var(--color-gold)" : "var(--color-border)" }}
+    >
+      <div
+        className="absolute top-0.5 w-3 h-3 bg-white rounded-full transition-transform duration-200 shadow-sm"
+        style={{ left: value ? "calc(100% - 14px)" : "2px" }}
+      />
+    </button>
+  );
+}
+
+function SensorRow({
+  icon: Icon,
+  label,
+  active,
+  onChange,
+  available,
+}: {
+  icon: React.ElementType;
+  label: string;
+  active: boolean;
+  onChange: (v: boolean) => void;
+  available: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between py-1.5">
+      <div className="flex items-center gap-2">
+        <Icon
+          size={13}
+          style={{ color: active && available ? "var(--color-gold)" : "var(--color-text-muted)" }}
+        />
+        <span
+          className="text-xs"
+          style={{ color: active && available ? "var(--color-text)" : "var(--color-text-muted)" }}
+        >
+          {label}
+        </span>
+        {!available && (
+          <span
+            className="text-[9px] px-1.5 py-0.5 rounded-full font-semibold"
+            style={{ background: "var(--color-surface-2)", color: "var(--color-text-muted)" }}
+          >
+            Soon
+          </span>
+        )}
+      </div>
+      <MiniToggle value={active && available} onChange={available ? onChange : () => {}} />
+    </div>
+  );
+}
+
 export default function RightPanel() {
   const isCameraActive = useStudioStore((s) => s.isCameraActive);
   const setCameraActive = useStudioStore((s) => s.setCameraActive);
@@ -38,6 +96,8 @@ export default function RightPanel() {
   const facesDetected = useStudioStore((s) => s.facesDetected);
   const hardwareInfo = useStudioStore((s) => s.hardwareInfo);
   const setHardwareInfo = useStudioStore((s) => s.setHardwareInfo);
+  const sensors = useStudioStore((s) => s.sensors);
+  const setSensor = useStudioStore((s) => s.setSensor);
 
   const [screenResolution, setScreenResolution] = useState("—");
 
@@ -100,6 +160,30 @@ export default function RightPanel() {
         </button>
       </Section>
 
+      <Section title="AI Sensors">
+        <SensorRow
+          icon={ScanFace}
+          label="Face Tracking"
+          active={sensors.faceTracking}
+          onChange={(v) => setSensor("faceTracking", v)}
+          available={true}
+        />
+        <SensorRow
+          icon={Hand}
+          label="Hand Tracking"
+          active={sensors.handTracking}
+          onChange={(v) => setSensor("handTracking", v)}
+          available={false}
+        />
+        <SensorRow
+          icon={PersonStanding}
+          label="Body Tracking"
+          active={sensors.bodyTracking}
+          onChange={(v) => setSensor("bodyTracking", v)}
+          available={false}
+        />
+      </Section>
+
       <Section title="AI Core">
         <div className="flex items-center gap-2">
           <Activity
@@ -114,8 +198,6 @@ export default function RightPanel() {
         <StatRow label="FPS" value={fps} />
         <StatRow label="Faces Detected" value={facesDetected} />
       </Section>
-
-
 
       <Section title="Hardware">
         <div className="flex flex-col gap-0.5">

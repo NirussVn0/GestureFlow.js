@@ -178,10 +178,15 @@ export default function SettingsModal() {
         </div>
 
         <div
-          className="p-3 text-[10px] text-center border-t"
-          style={{ borderColor: "var(--color-border)", color: "var(--color-text-muted)", background: "rgba(0,0,0,0.15)" }}
+          className="p-3 text-center border-t flex flex-col gap-0.5"
+          style={{ borderColor: "var(--color-border)", background: "rgba(0,0,0,0.15)" }}
         >
-          Preferences auto-saved via Zustand Persist
+          <span className="text-[10px]" style={{ color: "var(--color-text-muted)" }}>
+            GestureFlow.js v0.2 — All settings auto-saved
+          </span>
+          <span className="text-[9px] font-semibold gold-gradient">
+            Crafted by NirussVn0
+          </span>
         </div>
       </div>
     </div>
