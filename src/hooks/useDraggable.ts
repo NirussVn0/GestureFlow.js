@@ -8,6 +8,11 @@ export function useDraggable(
   const isDragging = useRef(false);
   const position = useRef({ x: 0, y: 0 });
   const origin = useRef({ x: 0, y: 0 });
+  const boundsRefInternal = useRef(boundsRef);
+
+  useEffect(() => {
+    boundsRefInternal.current = boundsRef;
+  });
 
   useEffect(() => {
     const el = ref.current;
@@ -40,8 +45,9 @@ export function useDraggable(
       let x = rawX;
       let y = rawY;
 
-      if (boundsRef?.current) {
-        const boundsRect = boundsRef.current.getBoundingClientRect();
+      const bounds = boundsRefInternal.current;
+      if (bounds?.current) {
+        const boundsRect = bounds.current.getBoundingClientRect();
         const elRect = el.getBoundingClientRect();
         const minX = boundsRect.left - elRect.left + position.current.x;
         const minY = boundsRect.top - elRect.top + position.current.y;
@@ -71,5 +77,5 @@ export function useDraggable(
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
     };
-  }, [ref, handleRef, boundsRef]);
+  }, [ref, handleRef]);
 }
