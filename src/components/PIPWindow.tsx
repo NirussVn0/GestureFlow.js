@@ -69,20 +69,24 @@ export default function PIPWindow() {
           </span>
           <div className="flex gap-2">
             <button
-              onClick={handlePopOut}
               title="Pop out to new window"
               className="flex items-center justify-center w-5 h-5 rounded hover:bg-white/10 transition-colors"
               style={{ color: "var(--color-text-muted)" }}
-              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                handlePopOut();
+              }}
             >
               <Maximize2 size={11} />
             </button>
             <button
-              onClick={handleClose}
               title="Hide PIP"
               className="flex items-center justify-center w-5 h-5 rounded hover:bg-red-500/20 transition-colors"
               style={{ color: "var(--color-text-muted)" }}
-              onPointerDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                handleClose();
+              }}
             >
               <X size={11} />
             </button>

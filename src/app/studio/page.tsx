@@ -18,7 +18,7 @@ export default function StudioPage() {
 
   return (
     <div className={`studio-layout ${theme === "light" ? "theme-light" : ""}`}>
-      <div className="shrink-0" style={{ width: "var(--sidebar-width)" }}>
+      <div className="shrink-0 h-full" style={{ width: "var(--sidebar-width)" }}>
         <LeftNavBar />
       </div>
 

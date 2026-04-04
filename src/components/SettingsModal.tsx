@@ -10,6 +10,7 @@ import {
   PersonStanding,
   MonitorPlay,
   BarChart3,
+  Maximize,
 } from "lucide-react";
 import { useStudioStore } from "@/store/useStudioStore";
 
@@ -65,6 +66,56 @@ function SettingRow({
   );
 }
 
+function SettingSelect({
+  icon: Icon,
+  label,
+  description,
+  value,
+  options,
+  onChange,
+}: {
+  icon: React.ElementType;
+  label: string;
+  description?: string;
+  value: string;
+  options: { label: string; value: string }[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between py-3 border-b last:border-0"
+      style={{ borderColor: "var(--color-border)" }}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div
+          className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+          style={{ background: "rgba(255, 255, 255, 0.05)" }}
+        >
+          <Icon size={16} style={{ color: "var(--color-text)" }} />
+        </div>
+        <div className="min-w-0">
+          <span className="text-sm font-medium block" style={{ color: "var(--color-text)" }}>{label}</span>
+          {description && (
+            <span className="text-[11px] block mt-0.5" style={{ color: "var(--color-text-muted)" }}>{description}</span>
+          )}
+        </div>
+      </div>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-transparent text-sm font-medium outline-none cursor-pointer p-1"
+        style={{ color: "var(--color-gold)" }}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value} style={{ background: "var(--color-surface)", color: "var(--color-text)" }}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function SectionTitle({ title }: { title: string }) {
   return (
     <p
@@ -88,6 +139,11 @@ export default function SettingsModal() {
   const setShowPip = useStudioStore((s) => s.setShowPip);
   const showVirtualCamOverlay = useStudioStore((s) => s.showVirtualCamOverlay);
   const setShowVirtualCamOverlay = useStudioStore((s) => s.setShowVirtualCamOverlay);
+  
+  // Custom mode
+  const canvasScaleMode = useStudioStore((s) => s.canvasScaleMode);
+  const setCanvasScaleMode = useStudioStore((s) => s.setCanvasScaleMode);
+
   const sensors = useStudioStore((s) => s.sensors);
   const setSensor = useStudioStore((s) => s.setSensor);
 
@@ -162,6 +218,18 @@ export default function SettingsModal() {
               description="Show picture-in-picture preview"
               value={showPip}
               onChange={setShowPip}
+            />
+            <SettingSelect
+              icon={Maximize}
+              label="Canvas Fit Mode"
+              description="How camera video fits inside the studio workspace"
+              value={canvasScaleMode}
+              onChange={(v) => setCanvasScaleMode(v as any)}
+              options={[
+                { label: "Fit (contain)", value: "fit" },
+                { label: "Fill (cover)", value: "fill" },
+                { label: "Stretch (ignore aspect)", value: "stretch" }
+              ]}
             />
           </div>
 

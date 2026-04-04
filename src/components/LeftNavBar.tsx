@@ -18,7 +18,7 @@ export default function LeftNavBar() {
 
   return (
     <nav
-      className="flex flex-col items-center py-4 gap-2 border-r"
+      className="flex flex-col items-center py-4 gap-2 border-r w-full h-full"
       style={{
         background: "var(--color-surface)",
         borderColor: "var(--color-border)",

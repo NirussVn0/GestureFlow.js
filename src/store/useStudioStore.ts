@@ -13,6 +13,8 @@ interface SensorFlags {
   bodyTracking: boolean;
 }
 
+type CanvasScaleMode = "fit" | "fill" | "stretch";
+
 interface StudioState {
   isCameraActive: boolean;
   setCameraActive: (active: boolean) => void;
@@ -40,6 +42,9 @@ interface StudioState {
 
   showVirtualCamOverlay: boolean;
   setShowVirtualCamOverlay: (show: boolean) => void;
+
+  canvasScaleMode: CanvasScaleMode;
+  setCanvasScaleMode: (mode: CanvasScaleMode) => void;
 
   sensors: SensorFlags;
   setSensor: (key: keyof SensorFlags, value: boolean) => void;
@@ -81,6 +86,9 @@ export const useStudioStore = create<StudioState>()(
       showVirtualCamOverlay: false,
       setShowVirtualCamOverlay: (show) => set({ showVirtualCamOverlay: show }),
 
+      canvasScaleMode: "fit",
+      setCanvasScaleMode: (mode) => set({ canvasScaleMode: mode }),
+
       sensors: {
         faceTracking: true,
         handTracking: false,
@@ -103,6 +111,7 @@ export const useStudioStore = create<StudioState>()(
         showStatsOverlay: state.showStatsOverlay,
         showPip: state.showPip,
         showVirtualCamOverlay: state.showVirtualCamOverlay,
+        canvasScaleMode: state.canvasScaleMode,
         sensors: state.sensors,
       }),
     }

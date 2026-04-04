@@ -24,6 +24,7 @@ export default function MainWorkspace() {
   const isModelLoaded = useStudioStore((s) => s.isModelLoaded);
   const showStatsOverlay = useStudioStore((s) => s.showStatsOverlay);
   const showPip = useStudioStore((s) => s.showPip);
+  const canvasScaleMode = useStudioStore((s) => s.canvasScaleMode);
   const setFps = useStudioStore((s) => s.setFps);
   const setFacesDetected = useStudioStore((s) => s.setFacesDetected);
 
@@ -190,6 +191,8 @@ export default function MainWorkspace() {
         if (showVirtualCamOverlayRef.current) {
           drawHud(outputCtx, outputCanvas.height, fpsRef.current, facesRef.current);
         }
+
+        VirtualCamService.getInstance().broadcastFrame(outputCanvas);
       }
 
       requestRef.current = requestAnimationFrame(renderLoop);
@@ -231,7 +234,15 @@ export default function MainWorkspace() {
         id="main-ml-canvas"
         ref={canvasRef}
         className="w-full h-full"
-        style={{ objectFit: "cover", display: "block" }}
+        style={{
+          objectFit:
+            canvasScaleMode === "fit"
+              ? "contain"
+              : canvasScaleMode === "fill"
+              ? "cover"
+              : "fill",
+          display: "block",
+        }}
       />
 
       <canvas ref={outputCanvasRef} className="hidden" />
